@@ -85,7 +85,8 @@ sac.app.define("app-my-app", AppMyApp);   // guarded: defining twice is fine
 | `sidebar.set([…])` / `clear()` | Project navigation into the host's rail (`view` apps) |
 | `params` | Query parameters the host was opened with |
 | `appId` | Your id, as the host registered it |
-| `fs`, `identity` | Reserved, still `null` — use `localStorage` for now |
+| `fs` | Storage scoped to your app: `read(path, fallback)`, `write(path, value)`, `remove`, `list(prefix)`, `clear`, `usage`, `watch` — all async. `null` if the host grants none, so check first |
+| `identity` | Reserved for who-you-are, still `null` |
 
 Everything on `sac` beyond that is the **host's** and optional. `sac.toast` is
 the usual example: guard it (`typeof sac.toast === "function"`) rather than
@@ -123,6 +124,10 @@ Two apps you can install and read:
 - **Clean up in `onUnmount`.** Unsubscribe what you subscribed to, clear the
   rail you filled. A desktop keeps your element alive when the user switches
   away and removes it when they uninstall you.
+- **Store through `context.fs`, never `localStorage`.** It is scoped to your
+  app, it is async, and a host is free to back it with something better —
+  reaching past it opts you out of all of that. And catch a failed `write`:
+  storage that is full must not look like a save that worked.
 
 ## License
 
