@@ -124,10 +124,16 @@ Two apps you can install and read:
 - **Clean up in `onUnmount`.** Unsubscribe what you subscribed to, clear the
   rail you filled. A desktop keeps your element alive when the user switches
   away and removes it when they uninstall you.
-- **Store through `context.fs`, never `localStorage`.** It is scoped to your
-  app, it is async, and a host is free to back it with something better —
-  reaching past it opts you out of all of that. And catch a failed `write`:
-  storage that is full must not look like a save that worked.
+- **Store *locally* through `context.fs`, never `localStorage`.** It is scoped
+  to your app, it is async, and a host is free to back it with something better
+  — reaching past it opts you out of all of that. And catch a failed `write`:
+  storage that is full must not look like a save that worked. An app that needs
+  a database still has its own backend and calls it with `fetch`; the kit has
+  no opinion about your API, and the two mix freely.
+- **Never let the client decide who it is.** `context.identity` tells your UI
+  whose screen this is. If your backend returns personal data, it must verify
+  the credential itself — sending `identity.get().id` and trusting it means
+  anybody can ask for anybody's rows.
 
 ## License
 
