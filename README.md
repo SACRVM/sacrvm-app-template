@@ -86,7 +86,7 @@ sac.app.define("app-my-app", AppMyApp);   // guarded: defining twice is fine
 | `params` | Query parameters the host was opened with |
 | `appId` | Your id, as the host registered it |
 | `fs` | Storage scoped to your app: `read(path, fallback)`, `write(path, value)`, `remove`, `list(prefix)`, `clear`, `usage`, `watch` — all async. `null` if the host grants none, so check first |
-| `identity` | Reserved for who-you-are, still `null` |
+| `identity` | Who is at this desktop: `get()` → `{ id, name, avatar }` or `null`, plus `onChange`. Read-only, and not authentication — a name somebody typed, never proof of anyone |
 
 Everything on `sac` beyond that is the **host's** and optional. `sac.toast` is
 the usual example: guard it (`typeof sac.toast === "function"`) rather than
