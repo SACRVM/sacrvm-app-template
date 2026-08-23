@@ -115,8 +115,10 @@ Two apps you can install and read:
 
 - **No build step.** Vanilla custom elements, plain CSS, files served as they
   are. No bundler, no node_modules, no TypeScript.
-- **Don't vendor the kit.** The host provides it; `index.html` borrows it only
-  so you can develop alone. An app that ships its own copy fights its host.
+- **Vendor the kit, verbatim.** `kit/` is the release ZIP's `kit/`, unchanged —
+  local, offline, and `kit/VERSION` says which release. Never edit anything
+  under it; upgrading is delete `kit/`, unzip the next release. On a desktop
+  the host's own kit runs instead — your copy governs standalone dev only.
 - **Tokens only, never raw colours.** Style your own element, never `:root` —
   `:root` is the desktop around you. One `--accent` seed re-derives the rest.
 - **Light DOM.** The kit's stylesheet has to reach your markup; a shadow root

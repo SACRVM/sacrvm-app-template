@@ -20,8 +20,10 @@ shape of any of them.
 - **Tokens only.** Style the app's own element, never `:root`. No raw colour
   literals: use the kit's tokens, and one `--accent` seed if the app wants an
   identity of its own.
-- **Don't vendor the kit.** The host provides it. `index.html` borrows it from
-  the appkit's Pages purely so the app can run alone.
+- **The kit is vendored, verbatim.** `kit/` is the release ZIP's `kit/`,
+  untouched — `kit/VERSION` says which release. Never edit anything under it;
+  upgrading is delete `kit/`, unzip the next release. On a desktop the host's
+  own kit runs instead — the local copy governs standalone dev only.
 - **The kit's API only** — what the style guide documents. Never reach into a
   component's shadow root or private fields.
 

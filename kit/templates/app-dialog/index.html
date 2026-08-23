@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My App</title>
+    <title>My Dialog App</title>
 
     <!-- The harness: your app alone, no desktop, F5 to develop.
-         The app vendors its own kit/ (autark: local, offline, kit/VERSION
-         says which release). On a desktop the host provides the live kit at
-         runtime instead — this local copy only governs standalone dev. To
-         upgrade: delete kit/, unzip the next release. Never edit kit/. -->
+         Vendored and autark: your app repo keeps its OWN copy of kit/ (the
+         primary model) — no CDN, works fully offline, and you upgrade when you
+         choose. When a real desktop hosts you instead, IT provides the kit and
+         you drop these two lines. -->
     <link rel="stylesheet" href="kit/css/ui.css">
     <script defer src="kit/js/all.js"></script>
 
@@ -44,8 +44,7 @@
 </head>
 <body>
     <!-- Roughly the box a <sac-window> would give it on a desktop. With no
-         host calling mount(), sac.app.Element mounts the app itself.
-         A fullscreen app drops the frame: <app-my-app> straight in <body>. -->
-    <div class="frame"><app-my-app></app-my-app></div>
+         host calling mount(), sac.app.Element mounts the app itself. -->
+    <div class="frame"><app-my-dialog-app></app-my-dialog-app></div>
 </body>
 </html>
