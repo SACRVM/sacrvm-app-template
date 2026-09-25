@@ -33,6 +33,10 @@ Then rename the placeholder in five places. Pick a tag with a dash in it
    `https://<you>.github.io/<your-repo>/app.json` loads in a browser.
 3. On a desktop — [desktop.sacrvm.dev](https://desktop.sacrvm.dev/) or your own —
    paste `github.com/<you>/<your-repo>` into the install tile.
+4. Optional — list it in the desktop's **App Store**: once Pages serves your
+   `app.json`, give the repository the GitHub topic `sacrvm-app`
+   (`gh repo edit <you>/<your-repo> --add-topic sacrvm-app`). The template
+   itself deliberately does not carry that topic — your copy does.
 
 That is the whole distribution story. The desktop stores your **address**, not a
 copy of your code: every push is live for everyone who installed it, and there
@@ -56,6 +60,7 @@ is nothing to re-publish and no store to submit to.
 | `width` / `height` | `window` apps: the initial window size |
 | `resizable` / `controls` | `window` apps: pass `false` / a control set to `<sac-window>` |
 | `nav` | `view` apps: `false` keeps it out of the host's nav |
+| `palette` | `false` keeps the app out of the Ctrl-K palette (listed under "Apps" otherwise) |
 
 ## The contract
 
@@ -85,12 +90,47 @@ sac.app.define("app-my-app", AppMyApp);   // guarded: defining twice is fine
 | `sidebar.set([…])` / `clear()` | Project navigation into the host's rail (`view` apps) |
 | `params` | Query parameters the host was opened with |
 | `appId` | Your id, as the host registered it |
-| `fs` | Storage scoped to your app: `read(path, fallback)`, `write(path, value)`, `remove`, `list(prefix)`, `clear`, `usage`, `watch` — all async. `null` if the host grants none, so check first |
+| `fs` | Storage scoped to your app: `read(path, fallback)`, `write(path, value)`, `remove`, `list(prefix)`, `stat(path)`, `clear`, `usage`, `watch` — all async; values may be Blobs. `null` if the host grants none, so check first |
+| `files` | The **user's** files, wherever the host keeps them: `open({ accept, multiple })` and `save(blob, { name })` (Save as…) → `{ name, file, handle }` or `null` on cancel. Hand the `handle` back to `save` and it saves silently. `null` if the host grants none |
+| `lang` | `get()` / `onChange(cb)` — the page's language, owned by the host like the theme. Re-render your strings on change; `null` on hosts older than kit 2.12 |
+| `setDirty(flag)` | `true` while you hold unsaved work: leaving the page asks first, and a host can ask before closing you. `false` once saved |
 | `identity` | Who is at this desktop: `get()` → `{ id, name, avatar }` or `null`, plus `onChange`. Read-only, and not authentication — a name somebody typed, never proof of anyone |
+
+A slot a host does not have is `null` or missing — a desktop runs *its* kit,
+which may be older than yours. Feature-check (`if (context.lang)`) rather than
+assume.
 
 Everything on `sac` beyond that is the **host's** and optional. `sac.toast` is
 the usual example: guard it (`typeof sac.toast === "function"`) rather than
 assume a desktop that has one.
+
+## Your strings, in every language
+
+The page has one language, switched at runtime by the host (standalone: the
+`<sac-lang-toggle>` in the harness). The kit's own components follow it by
+themselves; your app does three things, all shown in `app.js`:
+
+```js
+sac.i18n.add("de", { "my-app.save": "Speichern" });   // once, at parse time
+sac.t("my-app.save", "Save")                          // English is the inline fallback
+context.lang.onChange(() => this._text())             // re-render; unsubscribe in onUnmount
+```
+
+Namespace keys by your app id. `sac.i18n.add` is new in kit 2.12 — guard it
+(`typeof sac.i18n.add === "function"`) so an older host just shows English.
+
+## On a phone
+
+A kit-only app works at 360px without media queries of its own. A `window`
+app opens maximized below the host's nav there, and the harness does the
+same below 768px — develop in DevTools device mode as well as at your
+manifest's size. Keep the primary action at the bottom, where the thumb is.
+
+A `view` app with its own `<sac-nav>`: set `host-nav="wide"` (the host's
+dashboard is the phone's main level), and `sections-nav="wide"` if your rail
+repeats the nav's sections. For a list with a detail pane, copy
+[`list-detail.html`](kit/templates/list-detail.html) — `<sac-split collapse>`
+turns it into two screens on a phone.
 
 ## Make it a fullscreen app
 
