@@ -27,6 +27,11 @@
  * Returns the <sac-window>. Re-opening the same About (matched by name) brings
  * the existing one to front instead of stacking a duplicate. All text is set
  * via textContent — notice text is third-party and is never trusted as markup.
+ *
+ * Compact/touch: sac-window maximizes itself on compact the moment it opens,
+ * so the fit-to-content height below is skipped for a maximized window — it
+ * would otherwise shrink the phone's full-screen About back to a 440px-era
+ * rect. The notices scroll inside the window as usual.
  */
 (function () {
     if (!window.sac) { console.warn("[sac.about] globals.js must load first — about unavailable."); return; }
@@ -34,10 +39,8 @@
     sac.about = {
         open(data) {
             const m = data || {};
-            const name = m.name || "This app";
-            const title = (window.sac && sac.t)
-                ? sac.t("about.title", "About {name}").replace("{name}", name)
-                : "About " + name;
+            const name = m.name || sac.t("about.this-app", "This app");
+            const titleOf = () => sac.t("about.title", "About {name}").replace("{name}", name);
 
             // One About per subject: a second click resurfaces it, never stacks.
             const key = "about:" + name;
@@ -46,7 +49,16 @@
             if (existing) { existing.open(); existing.bringToFront?.(); return existing; }
 
             const win = document.createElement("sac-window");
-            win.setAttribute("title", title);
+            win.setAttribute("title", titleOf());
+            // An About left open follows a language switch (its title is the
+            // kit's; name and notices are the app's). Unsubscribes itself
+            // once the window is gone.
+            if (sac.lang) {
+                const off = sac.lang.onChange(() => {
+                    if (!win.isConnected) { off(); return; }
+                    win.setAttribute("title", titleOf());
+                });
+            }
             win.setAttribute("controls", "close");
             win.setAttribute("width", "440px");
             // An About is sized to its content (below) and can't be maximized —
@@ -113,6 +125,8 @@
             setTimeout(() => {
                 win.open();
                 win.bringToFront?.();
+                // Compact: open() just maximized it — leave that rect alone.
+                if (win.hasAttribute("maximized")) return;
                 // Fit the window to its content. sac-window has no intrinsic
                 // height (it defaults to 300px), which clipped a longer About
                 // mid-sentence. Measure the now-laid-out body, add the window

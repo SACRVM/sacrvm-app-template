@@ -12,8 +12,10 @@
  * Dates cross the API as ISO strings ("yyyy-mm-dd") — never Date objects.
  * All math runs on local calendar dates, so there is no UTC off-by-one and
  * 2026-02-31 is rejected as the non-date it is. Month and weekday names come
- * from Intl in the browser's locale — no locale data is shipped, and no
- * time zones exist here: the suite speaks pure local calendar dates.
+ * from Intl in the page language's locale (sac.lang.locale(), the browser's
+ * own when standalone) and follow a runtime language switch in place — no
+ * locale data is shipped, and no time zones exist here: the suite speaks
+ * pure local calendar dates.
  *
  * Attributes:
  *   value      — ISO selected date, reflected. Read tolerantly (whitespace
@@ -42,7 +44,9 @@
  *           actually changes — re-selecting the selected day stays quiet.
  *
  * CSS custom properties:
- *   --calendar-width — width of the whole calendar. Default 280px.
+ *   --calendar-width — width of the whole calendar. Default 280px (320px
+ *                      under (pointer: coarse), see below). Never wider
+ *                      than its container: the day cells shrink instead.
  *
  * Keyboard (grid pattern, roving tabindex — one day cell in the tab order):
  *   Arrows          — ±1 day (left/right), ±7 days (up/down)
@@ -61,6 +65,15 @@
  *     month label is aria-live="polite" so paging announces itself.
  *   - Requires sac-icon (lib/icons.js + components/sac-icon.js) for the
  *     header chevrons.
+ *
+ * Compact/touch:
+ *   The calendar caps itself at 100% of its container (max-width), so it
+ *   never overflows a 360px phone or a narrow panel — the 7 columns shrink.
+ *   Under (pointer: coarse) the default width grows to 320px so a day cell
+ *   is 44 x 44px (7 x 44 + 6 x 2 gap), and the header wraps: the month label
+ *   takes a line of its own and the six paging buttons get 44px targets
+ *   below it (seven 44px items would leave the label no room). Nothing is
+ *   hover-only — the hover tint is decoration.
  */
 (function () {
 
@@ -68,6 +81,21 @@
      *  the component runs standalone. */
     const t = (key, fallback) =>
         (window.sac && window.sac.t) ? window.sac.t(key, fallback) : fallback;
+
+    /** Locale for Intl output: the page language's (sac.lang), else the
+     *  browser's own (undefined). */
+    const locale = () => (window.sac && window.sac.lang) ? window.sac.lang.locale() : undefined;
+
+    /** Header paging buttons: id → [key, English]. Tooltip and aria-label
+     *  share one translation. */
+    const NAV = {
+        "prev-dec":  ["calendar.prev-decade", "Back 10 years"],
+        "prev-year": ["calendar.prev-year",   "Previous year"],
+        "prev":      ["calendar.prev-month",  "Previous month"],
+        "next":      ["calendar.next-month",  "Next month"],
+        "next-year": ["calendar.next-year",   "Next year"],
+        "next-dec":  ["calendar.next-decade", "Forward 10 years"],
+    };
 
     /* ------------------------------------------------------- date helpers */
     /* Plain { y, m, d } records (m is 1-based), Date objects only as local
@@ -161,6 +189,23 @@
             this._ready = true;
             this._reflect();
             this._syncAll();
+            // Runtime language switch: relabel in place, keep view and focus.
+            if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
+        }
+
+        disconnectedCallback() {
+            if (this._offLang) { this._offLang(); this._offLang = null; }
+        }
+
+        /** Header labels + Intl names in the current language, in place. */
+        _relabel() {
+            for (const id in NAV) {
+                const btn = this.shadowRoot.getElementById(id);
+                const text = t(NAV[id][0], NAV[id][1]);
+                btn.setAttribute("aria-label", text);
+                btn.title = text;
+            }
+            if (this._ready) this._syncAll();
         }
 
         attributeChangedCallback(name) {
@@ -228,12 +273,12 @@
             return (makeDate(d.y, d.m, d.d).getDay() - this._weekStart() + 7) % 7;
         }
 
-        /** Intl formatter in the BROWSER's locale — date output is always
-         *  browser-specific by kit rule (undefined = the browser decides;
-         *  never a hand-rolled format, never a declared page lang that lies
-         *  about the reader). */
+        /** Intl formatter in the page language's locale — sac.lang.locale()
+         *  prefers the browser's own regional entry for that language, and
+         *  standalone it is undefined (the browser decides). Never a
+         *  hand-rolled format. */
         _fmt(opts) {
-            return new Intl.DateTimeFormat(undefined, opts);
+            return new Intl.DateTimeFormat(locale(), opts);
         }
 
         /* ------------------------------------------------------------ sync */
@@ -380,14 +425,8 @@
         _render() {
             // Header strings: tooltip and aria-label share one translation.
             const esc = (s) => String(s).replace(/"/g, "&quot;");
-            const L = {
-                prevDec:  esc(t("calendar.prev-decade", "Back 10 years")),
-                prevYear: esc(t("calendar.prev-year",   "Previous year")),
-                prevMon:  esc(t("calendar.prev-month",  "Previous month")),
-                nextMon:  esc(t("calendar.next-month",  "Next month")),
-                nextYear: esc(t("calendar.next-year",   "Next year")),
-                nextDec:  esc(t("calendar.next-decade", "Forward 10 years")),
-            };
+            const L = {};
+            for (const id in NAV) L[id] = esc(t(NAV[id][0], NAV[id][1]));
             const cells = '<button type="button" class="day" role="gridcell" tabindex="-1"></button>'.repeat(7);
             const weeks = Array.from({ length: 6 },
                 () => `<div class="row" role="row">${cells}</div>`).join("");
@@ -399,10 +438,18 @@
                         --calendar-width: 280px;
                         display: inline-block;
                         width: var(--calendar-width);
+                        max-width: 100%;          /* the cells shrink before the page scrolls */
+                        box-sizing: border-box;
                         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                         color: var(--text);
                         -webkit-user-select: none;
                         user-select: none;
+                    }
+                    /* Touch: 320px = seven 44px day columns + six 2px gaps.
+                       An app's own --calendar-width still wins (it is set on
+                       the element, outranking this :host default). */
+                    @media (pointer: coarse) {
+                        :host { --calendar-width: 320px; }
                     }
 
                     /* --- header ------------------------------------------ */
@@ -525,28 +572,49 @@
                         cursor: default;
                     }
 
+                    /* Touch: 44px day cells and paging buttons. The label gets
+                       its own line above the buttons — seven 44px items in one
+                       row would squeeze "September 2026" to an ellipsis — and
+                       the buttons split into a back group and a forward group. */
+                    @media (pointer: coarse) {
+                        .head {
+                            flex-wrap: wrap;
+                            row-gap: 0;
+                        }
+                        .label {
+                            order: -1;
+                            flex-basis: 100%;
+                            padding: 4px 0 2px;
+                        }
+                        /* 44px each, but allowed to shrink: six fixed 44px
+                           buttons wrap 5 + 1 in a calendar under 264px. */
+                        .nav { width: 44px; height: 44px; flex: 0 1 44px; min-width: 32px; }
+                        #next { margin-left: auto; }
+                        .day { height: 44px; font-size: 0.9rem; }
+                    }
+
                     @media (prefers-reduced-motion: reduce) {
                         .nav, .day { transition: none; }
                     }
                 </style>
                 <div class="head">
-                    <button type="button" class="nav" id="prev-dec" aria-label="${L.prevDec}" title="${L.prevDec}">
+                    <button type="button" class="nav" id="prev-dec" aria-label="${L["prev-dec"]}" title="${L["prev-dec"]}">
                         <sac-icon name="chevron-triple-left"></sac-icon>
                     </button>
-                    <button type="button" class="nav" id="prev-year" aria-label="${L.prevYear}" title="${L.prevYear}">
+                    <button type="button" class="nav" id="prev-year" aria-label="${L["prev-year"]}" title="${L["prev-year"]}">
                         <sac-icon name="chevron-double-left"></sac-icon>
                     </button>
-                    <button type="button" class="nav" id="prev" aria-label="${L.prevMon}" title="${L.prevMon}">
+                    <button type="button" class="nav" id="prev" aria-label="${L["prev"]}" title="${L["prev"]}">
                         <sac-icon name="chevron-left"></sac-icon>
                     </button>
                     <div class="label" id="label" aria-live="polite"></div>
-                    <button type="button" class="nav" id="next" aria-label="${L.nextMon}" title="${L.nextMon}">
+                    <button type="button" class="nav" id="next" aria-label="${L["next"]}" title="${L["next"]}">
                         <sac-icon name="chevron-right"></sac-icon>
                     </button>
-                    <button type="button" class="nav" id="next-year" aria-label="${L.nextYear}" title="${L.nextYear}">
+                    <button type="button" class="nav" id="next-year" aria-label="${L["next-year"]}" title="${L["next-year"]}">
                         <sac-icon name="chevron-double-right"></sac-icon>
                     </button>
-                    <button type="button" class="nav" id="next-dec" aria-label="${L.nextDec}" title="${L.nextDec}">
+                    <button type="button" class="nav" id="next-dec" aria-label="${L["next-dec"]}" title="${L["next-dec"]}">
                         <sac-icon name="chevron-triple-right"></sac-icon>
                     </button>
                 </div>

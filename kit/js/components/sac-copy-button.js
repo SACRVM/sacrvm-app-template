@@ -31,6 +31,12 @@
  *
  * The button is a native <button> in the shadow root, so focus and keyboard
  * activation come for free. Host is display: inline-flex.
+ *
+ * Compact/touch: under (pointer: coarse) the button keeps its 26px look and
+ * gets an invisible 44 x 44 hit halo — the same rule as ui.css's .icon-btn,
+ * whose twin this is. Under (hover: none) no hover wash sticks after a tap;
+ * the check/error icon swap is the feedback. Copy needs a secure context
+ * (https or localhost) on phones too.
  */
 (function () {
 
@@ -52,10 +58,18 @@ class SacCopyButton extends HTMLElement {
     connectedCallback() {
         if (!this.shadowRoot.firstChild) this._render();
         else this._syncLabel();
+        // Runtime language switch: the default label follows in place.
+        if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
     }
 
     disconnectedCallback() {
         clearTimeout(this._stateTimer);
+        if (this._offLang) { this._offLang(); this._offLang = null; }
+    }
+
+    /** Kit strings in the current language (an app label stays as given). */
+    _relabel() {
+        this._syncLabel();
     }
 
     attributeChangedCallback(name) {
@@ -73,13 +87,15 @@ class SacCopyButton extends HTMLElement {
                     display: inline-flex;
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                 }
+                /* The .icon-btn recipe from ui.css — shared via the
+                   --icon-btn-* tokens, since the class can't reach in here. */
                 button {
-                    --icon-size: 14px;
+                    --icon-size: var(--icon-btn-icon);
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    width: 26px;
-                    height: 26px;
+                    width: var(--icon-btn-size);
+                    height: var(--icon-btn-size);
                     padding: 0;
                     border: none;
                     border-radius: var(--radius-m);
@@ -107,6 +123,23 @@ class SacCopyButton extends HTMLElement {
                     transition: opacity 100ms var(--ease-smooth);
                 }
 
+                /* Touch — the twin of ui.css's coarse .icon-btn rule: the
+                   26px look stays, an invisible halo takes the hit area to
+                   44px. Keep the two in step. */
+                @media (pointer: coarse) {
+                    button { position: relative; }
+                    button::after {
+                        content: "";
+                        position: absolute;
+                        inset: calc((var(--icon-btn-size) - 44px) / 2);
+                    }
+                }
+                /* A tap leaves :hover stuck — no wash after the copy. */
+                @media (hover: none) {
+                    button:hover:not(:disabled) { background: transparent; color: var(--text-dim); }
+                    button.ok:hover:not(:disabled)  { background: transparent; color: var(--ok-text); }
+                    button.err:hover:not(:disabled) { background: transparent; color: var(--danger-text); }
+                }
                 @media (prefers-reduced-motion: reduce) {
                     button, sac-icon { transition: none; }
                 }

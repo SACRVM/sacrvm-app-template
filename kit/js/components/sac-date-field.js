@@ -54,7 +54,17 @@
  *
  * CSS custom properties:
  *   --calendar-width — set on this field, forwarded to the popover's
- *                      <sac-calendar>. Default 280px.
+ *                      <sac-calendar>. Default 280px (320px under
+ *                      (pointer: coarse), mirroring the calendar).
+ *
+ * Compact/touch:
+ *   The popover is never wider than the viewport minus 8px a side
+ *   (max-width: calc(100vw - 16px)); the calendar inside caps itself at the
+ *   popover's width and shrinks its columns, so the 8px viewport clamp holds
+ *   on a 360px phone. Under (pointer: coarse) the input and the calendar
+ *   button are 44px tall (the button 44 x 44), the input uses 16px type (no
+ *   iOS focus zoom), and the calendar grows to 44px day cells. Nothing is
+ *   hover-only — hover only tints borders.
  */
 (function () {
 
@@ -96,9 +106,13 @@ class SacDateField extends HTMLElement {
         document.addEventListener("keydown", this._onDocKeydown, true);
         window.addEventListener("scroll", this._onReposition, true);
         window.addEventListener("resize", this._onReposition);
+        // Runtime language switch: relabel in place (the popover calendar
+        // relabels itself); typing, value and an open popover survive.
+        if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
     }
 
     disconnectedCallback() {
+        if (this._offLang) { this._offLang(); this._offLang = null; }
         this._closePopover(false);            // never leave a popover anchored to nothing
         if (this._lowerTimer != null) {
             clearTimeout(this._lowerTimer);
@@ -241,6 +255,15 @@ class SacDateField extends HTMLElement {
         this._input.placeholder = this.getAttribute("placeholder") || t("date-field.placeholder", "yyyy-mm-dd");
     }
 
+    /** Kit strings in the current language, on the existing nodes. */
+    _relabel() {
+        if (!this._input) return;
+        this._syncLabel();
+        this._syncPlaceholder();
+        this._well.setAttribute("aria-label", t("date-field.choose-date", "Choose date"));
+        if (this._popover) this._popover.setAttribute("aria-label", t("date-field.calendar", "Calendar"));
+    }
+
     _syncDisabled() {
         const off = this.hasAttribute("disabled");
         this._well.disabled = off;
@@ -288,6 +311,7 @@ class SacDateField extends HTMLElement {
                 :host {
                     --calendar-width: 280px;   /* mirrors the calendar's own default */
                     display: inline-block;
+                    max-width: 100%;
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                     color: var(--text);
                 }
@@ -384,6 +408,10 @@ class SacDateField extends HTMLElement {
                     margin: 0;                     /* …and centres them with auto margins */
                     display: block;                /* beats the UA's popover display: none */
                     z-index: 9999;
+                    box-sizing: border-box;
+                    /* Never wider than the viewport minus the 8px clamp margin
+                       a side; the calendar inside caps itself at 100%. */
+                    max-width: calc(100vw - 16px);
                     padding: 10px;
                     background: var(--glass-strong);
                     backdrop-filter: blur(12px);
@@ -403,6 +431,30 @@ class SacDateField extends HTMLElement {
                     opacity: 1;
                     visibility: visible;
                     transform: translateY(0);
+                }
+                /* Out of the top layer = out of layout (as sac-menu): a closed
+                   popover parked at its last anchor must not widen a phone
+                   page. It leaves the layer only after the close fade. */
+                .popover:not(:popover-open) { display: none; }
+                /* Back from display: none there is no "before" style for the
+                   open transition to start from — supply the closed look. */
+                @starting-style {
+                    .popover.open {
+                        opacity: 0;
+                        transform: translateY(-4px);
+                    }
+                }
+
+                /* Touch: 44px row (the input and a 44 x 44 button), 16px
+                   type so iOS does not zoom on focus, and the calendar's own
+                   coarse default mirrored here (see --calendar-width). */
+                @media (pointer: coarse) {
+                    :host { --calendar-width: 320px; }
+                    .date {
+                        min-height: 44px;
+                        font-size: max(16px, 1rem);
+                    }
+                    .well { width: 44px; height: 44px; }
                 }
 
                 /* The calendar's own :host default would beat a value

@@ -24,6 +24,11 @@
  * Events:
  *   sac:toggle — detail { expanded: boolean }, bubbles + composed.
  *
+ * Compact/touch: the tab is a plain click target; under (pointer: coarse) it
+ * gets an invisible 44 x 44 hit halo, under (hover: none) no hover tint
+ * sticks after a tap. The clamp and the ResizeObserver re-measure cover a
+ * phone rotating or a panel narrowing.
+ *
  * Imperative API:
  *   .expanded — get/set, reflects the attribute
  *   .measure() — re-run overflow detection (slotchange + ResizeObserver
@@ -62,12 +67,17 @@ class SacCollapsible extends HTMLElement {
         this._ro = new ResizeObserver(() => this._measure());
         this._ro.observe(this._content);
         this._measure();
+        if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
     }
 
     disconnectedCallback() {
         this._ro?.disconnect();
         this._ro = null;
+        if (this._offLang) { this._offLang(); this._offLang = null; }
     }
+
+    /** Language switch: the more/less tab text, in place (state untouched). */
+    _relabel() { this._apply(); }
 
     attributeChangedCallback(name) {
         if (!this._content) return;
@@ -192,6 +202,23 @@ class SacCollapsible extends HTMLElement {
                     border-color: var(--text-muted);
                 }
                 .toggle[hidden] { display: none !important; }
+
+                /* Touch: the hanging tab keeps its small look; an invisible
+                   halo takes it to 44 x 44 (min(): only a short axis grows).
+                   It reaches ~12px up over the clamped content's last line —
+                   that line is faded and not interactive, so nothing is lost. */
+                @media (pointer: coarse) {
+                    .toggle { position: relative; }
+                    .toggle::after {
+                        content: "";
+                        position: absolute;
+                        inset: min(0px, calc((100% - 44px) / 2));
+                    }
+                }
+                @media (hover: none) {
+                    .divider:has(.toggle:hover) { border-top-color: var(--border); }
+                    .toggle:hover { color: var(--text-muted); border-color: var(--border); }
+                }
             </style>
             <div class="content"><slot></slot></div>
             <div class="divider"><button type="button" class="toggle" hidden>${t("collapsible.more", "more").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</button></div>

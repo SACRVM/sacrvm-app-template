@@ -1,8 +1,9 @@
 /**
  * <sac-slider label="Depth" min="0" max="100" step="1" value="50" suffix="px">
  * <sac-slider label="Quality" min="0" max="2" step="1" value="1" labels="Low,Medium,High">
+ * <sac-slider label="Smoothing" min="0.01" max="4" step="0.01" value="1" ends="Crisp,Smooth">
  *
- * Range slider with live value display. ALL seven attributes are observed.
+ * Range slider with live value display. ALL attributes are observed.
  *
  * IMPORTANT implementation constraint: attribute changes update the shadow
  * DOM IN PLACE — never re-render it. Re-rendering replaces the <input>
@@ -12,18 +13,28 @@
  * Attributes:
  *   label, min, max, step, value, suffix,
  *   labels   — comma-separated texts mapped by integer value (discrete steps).
+ *   ends     — "Low end,High end": two captions under the track's ends, for a
+ *              continuous range whose extremes need words ("Crisp,Smooth").
+ *              The readout still shows the number. Translate it like `label`
+ *              (the app sets the attribute again on a language switch).
  *   disabled — presence = inert + dimmed, fires nothing.
  *
  * Properties:
  *   value    — get/set, reflects the attribute (string).
  *   disabled — get/set, reflects the attribute.
  *
+ * Compact/touch: a native range input, so pointer/touch dragging is the
+ * browser's own. Under (pointer: coarse) the input is a 44px-tall hit strip
+ * (the 4px track is drawn inside it), the thumb grows to 20px, and
+ * touch-action: pan-y lets a vertical swipe over the slider scroll the page
+ * while a sideways drag moves the thumb.
+ *
  * Events (bubble, NOT composed — like native input/change; detail { value }):
  *   sac:input  — fired on drag (live); detail.value = string.
  *   sac:change — fired on release;     detail.value = string.
  */
 class SacSlider extends HTMLElement {
-    static get observedAttributes() { return ["label", "min", "max", "step", "value", "suffix", "labels", "disabled"]; }
+    static get observedAttributes() { return ["label", "min", "max", "step", "value", "suffix", "labels", "ends", "disabled"]; }
 
     constructor() {
         super();
@@ -86,7 +97,19 @@ class SacSlider extends HTMLElement {
         input.max  = this.getAttribute("max")  || "100";
         input.step = this.getAttribute("step") || "1";
         if (label) label.textContent = this.getAttribute("label") || "";
+        this._syncEnds();
         this._syncValue();
+    }
+
+    /** The two end captions, in place; the row is hidden without `ends`. */
+    _syncEnds() {
+        const row = this.shadowRoot.querySelector(".ends");
+        if (!row) return;
+        const raw = this.getAttribute("ends");
+        const parts = raw ? raw.split(",").map(s => s.trim()) : [];
+        row.hidden = !parts.some(Boolean);
+        row.children[0].textContent = parts[0] || "";
+        row.children[1].textContent = parts[1] || "";
     }
 
     render() {
@@ -131,15 +154,55 @@ class SacSlider extends HTMLElement {
                     cursor: pointer;
                     border: none;
                 }
+                .ends {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 0.5rem;
+                    margin-top: 0.25rem;
+                    font-size: 0.7rem;
+                    color: var(--text-muted);
+                }
+                .ends[hidden] { display: none; }
                 :host([disabled]) { opacity: .5; }
                 :host([disabled]) input[type="range"] { cursor: not-allowed; }
+
+                /* Touch: the input itself becomes a 44px-tall hit strip with
+                   the 4px track drawn inside it, and the thumb grows to 20px
+                   — a 14px dot is not something a finger can find. pan-y: a
+                   sideways drag moves the thumb, a vertical one still scrolls
+                   the page (a slider in a long sidebar must not trap it). */
+                @media (pointer: coarse) {
+                    input[type="range"] {
+                        height: 44px;
+                        background: transparent;
+                        touch-action: pan-y;
+                    }
+                    input[type="range"]::-webkit-slider-runnable-track {
+                        height: 4px;
+                        background: color-mix(in srgb, var(--fg) 10%, transparent);
+                        border-radius: var(--radius-s);
+                    }
+                    input[type="range"]::-moz-range-track {
+                        height: 4px;
+                        background: color-mix(in srgb, var(--fg) 10%, transparent);
+                        border-radius: var(--radius-s);
+                    }
+                    input[type="range"]::-webkit-slider-thumb {
+                        width: 20px; height: 20px;
+                        margin-top: -8px;        /* centre on the 4px track */
+                    }
+                    input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
+                    .row { margin-bottom: 0; }
+                }
             </style>
             <div class="row">
                 <span class="label">${label}</span>
                 <span class="val">${this._display(value)}</span>
             </div>
             <input type="range" min="${min}" max="${max}" step="${step}" value="${value}" ${this.disabled ? "disabled" : ""}/>
+            <div class="ends" part="ends" hidden><span></span><span></span></div>
         `;
+        this._syncEnds();
     }
 
     attach() {

@@ -7,6 +7,11 @@
  * Methods:
  *   show(title, subtitle)  — displays overlay
  *   hide()                 — fades out over 300ms
+ *
+ * Compact/touch: the overlay covers the whole screen (fixed, inset 0) and its
+ * content keeps clear of notches and the home indicator with safe-area
+ * padding; a long title or subtitle wraps centered instead of running past
+ * the screen edges. It has no controls.
  */
 (function () {
 
@@ -21,9 +26,19 @@ class SacLoader extends HTMLElement {
         this.attachShadow({ mode: "open" });
     }
 
-    connectedCallback() { this.render(); }
+    connectedCallback() {
+        this.render();
+        if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
+    }
+    disconnectedCallback() {
+        if (this._offLang) { this._offLang(); this._offLang = null; }
+    }
 
-    show(title = t("loader.loading", "Loading..."), subtitle = "") {
+    show(title, subtitle = "") {
+        // No title given: the kit's own "Loading..." — relabelled on a
+        // language switch; a caller's title is the caller's.
+        this._autoTitle = title == null;
+        if (this._autoTitle) title = t("loader.loading", "Loading...");
         this.render(title, subtitle);
         const overlay = this.shadowRoot.querySelector(".overlay");
         if (overlay) {
@@ -42,6 +57,12 @@ class SacLoader extends HTMLElement {
         setTimeout(() => { overlay.style.display = "none"; }, 300);
     }
 
+    /** Language switch: swap the default title in place (overlay state kept). */
+    _relabel() {
+        const el = this.shadowRoot.querySelector(".title");
+        if (el && this._autoTitle) el.textContent = t("loader.loading", "Loading...");
+    }
+
     render(title = "", subtitle = "") {
         this.shadowRoot.innerHTML = `
             <style>
@@ -58,6 +79,14 @@ class SacLoader extends HTMLElement {
                     z-index: 10000;
                     opacity: 0;
                     transition: opacity 0.3s;
+                    /* Room for the text at 360px, clear of notch and home
+                       indicator (env() is 0 on desktop). */
+                    padding: calc(1rem + env(safe-area-inset-top, 0px))
+                             calc(1rem + env(safe-area-inset-right, 0px))
+                             calc(1rem + env(safe-area-inset-bottom, 0px))
+                             calc(1rem + env(safe-area-inset-left, 0px));
+                    text-align: center;
+                    overflow-wrap: anywhere;
                 }
                 .spinner {
                     position: relative;
